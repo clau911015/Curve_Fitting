@@ -1,0 +1,850 @@
+library(shiny)
+library(shinydashboard)
+
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE, 
+                     repos='http://cran.us.r-project.org')
+  sapply(pkg, require, character.only = TRUE)
+} 
+
+packages<-c("quantmod","dplyr","Rblpapi","RMySQL","shiny","foreign","ggplot2","forecast",
+            "shinyjs","shinydashboard","ggExtra","gridExtra","tidyverse","lubridate",
+            "reshape2","broom","magrittr","TTR","Hmisc","plotly")
+
+ipak(packages)
+
+# Define UI for application that draws a histogram
+ui <- dashboardPage(
+  
+  
+  dashboardHeader(title="FX Volatility"),
+  # Application title
+  dashboardSidebar(
+            # Side Bar Menus ----------------------------
+            sidebarMenu(
+            id = "tabs",
+                menuItem("Single Currency", tabName = "SingleCurrency", 
+                      menuSubItem("General Analysis", tabName = "GeneralAnalysis"),
+                      menuSubItem("Realized Volatility Analysis", tabName = "RealizedVolatilityAnalysis"),
+                      menuSubItem("ATM Analysis", tabName = "ATMAnalysis"),
+                      menuSubItem("Risk Reversal Analysis", tabName = "RiskReversalAnalysis"),
+                      menuSubItem("Butterfly Analysis", tabName = "ButterflyAnalysis"),
+                      icon = icon("usd",lib="glyphicon")),
+                menuItem("Multi Currency", tabname="MultiCurrency",
+                      menuSubItem("Correlation Analysis", tabName = "CorrelationAnalysis"),
+                      icon = icon("eur",lib="glyphicon")),
+            menuItem("Broker Quotes", tabname="Brokerquotes",
+                     menuSubItem("Intraday Quotes", tabName = "Intraquotes"),
+                     icon = icon("cog",lib="glyphicon")),
+                menuItem("Update Database", tabname="UpdateDatabase",
+                      menuSubItem("All Databases", tabName = "AllDatabases"),
+                      menuSubItem("Single Database", tabName = "SingleDatabase"),
+                      icon = icon("cog",lib="glyphicon"))
+                      )
+            # --------------
+                  ),
+   
+  # GENERA EL DASHBOARD
+  dashboardBody(
+                  tabItems(
+          # TAB ALL DATABASES ---------------------------------------------------------
+          tabItem(
+            tabName = "Intraquotes",
+            box(
+              uiOutput("bases7"),
+              uiOutput("instrumentos_broker"),
+              uiOutput("tenors")
+            ),
+            box(
+                solidHeader = TRUE,
+                collapsible = TRUE,
+                title = "Plot",
+                status = "primary",plotOutput("Broker_data_plot")
+            )
+          ),
+          
+          tabItem(
+                  tabName = "AllDatabases",
+                  actionButton("button", "Update All Databases")
+                  ),
+          # TAB SINGLE DATABASES ---------------------------------------------------------------------------
+          tabItem(
+            tabName = "SingleDatabase",
+            actionButton("button2", "Update Database")
+                  ),
+          # TAB REALIZED VOLATILITY ANALYISIS --------------------------------------------------------------
+          tabItem(
+            tabName = "RealizedVolatilityAnalysis",
+            box(
+            uiOutput("bases5"),
+            dateRangeInput("daterange5", "Date range:",
+                           start = '2012-11-13',
+                           end = Sys.Date()),
+            box(
+              checkboxInput("bool1w", "1w", value = TRUE, width = NULL),
+              checkboxInput("bool2w", "2w", value = FALSE, width = NULL),
+              checkboxInput("bool1m", "1m", value = FALSE, width = NULL)
+            ),
+            box(
+              checkboxInput("bool2m", "2m", value = FALSE, width = NULL),
+              checkboxInput("bool3m", "3m", value = FALSE, width = NULL),
+              checkboxInput("bool6m", "6m", value = FALSE, width = NULL)
+            ),
+            box
+            (
+              radioButtons("voltype", "Volatility type:",
+                           c("Close 2 Close" = "c2c",
+                             "Garman Klass" = "gk",
+                             "Parkinson"="park",
+                             "Garman and Klass-Yang and Zhang"="nomames"))
+            )
+            ),
+            box(
+              solidHeader = TRUE,
+              collapsible = TRUE,
+              title = "Plot",
+              status = "primary",plotOutput("distPlotrealvol")
+              )
+          ),
+          # TAB GENERAL ANALYSIS ----------------------------------------------------------------------------
+          tabItem(
+            
+                  tabName="GeneralAnalysis",
+           box(
+                  title = "Inputs", solidHeader = TRUE,
+                  collapsible = TRUE,
+                  status = "primary",
+                  uiOutput("bases"),
+                  uiOutput("instrumentos"),
+                  dateRangeInput("daterange", "Date range:",
+                                 start = '2012-11-13',
+                                 end = Sys.Date()),
+                  box(
+                  checkboxInput("bool", "Trend Line", value = FALSE, width = NULL),
+                  checkboxInput("bool2", "Smooth", value = FALSE, width = NULL),
+                  checkboxInput("bool3", "Returns", value = FALSE, width = NULL),
+                  checkboxInput("bool4", "Realized Volatility", value = FALSE, width = NULL),
+                  checkboxInput("bool5", "Standarized Risk Reversal", value = FALSE, width = NULL)
+                  ),
+          box(
+            radioButtons("plt", "Plot type:",
+                         c("Time Serie" = "times",
+                           "Histogram" = "histogr"))
+          ),
+          box(
+            sliderInput("varwindow","Volatility Window",min=10,max=360,value=10)
+          )
+                  
+            ),
+                  box(
+                    solidHeader = TRUE,
+                    collapsible = TRUE,
+                    title = "Plot",
+                    status = "primary",
+                    plotlyOutput("distPlot"),
+                    fluidRow(
+                      column(align="center",
+                    tableOutput("summarytable"), width = 12
+                      )
+                    )
+                    )
+                 ),
+          # TAB CORRELATION ANALYSIS ------------------------------------------------------------------
+          tabItem(
+            tabName = "CorrelationAnalysis",
+            box
+            (
+              solidHeader = TRUE,
+              collapsible = TRUE,
+              box(
+              uiOutput("bases2"),
+              uiOutput("instrumentos2"),
+              sliderInput("lagg","Lag",min=0,max=100,value=0),
+              checkboxInput("boolvar1", "Realized Volatility", value = FALSE, width = NULL),
+              checkboxInput("booldiff1", "Differences", value = FALSE, width = NULL),
+              checkboxInput("boollogdiff1", "Log Returns", value = FALSE, width = NULL),
+              
+              sliderInput("varwindow1","Volatility Window",min=10,max=360,value=10)
+              ),
+              box
+              (
+                uiOutput("bases3"),
+                uiOutput("instrumentos3"),
+                #textInput("string_lag2", "Lag", value = 0, width = NULL, placeholder = NULL),
+                sliderInput("lagg2","Lag",min=0,max=100,value=0),
+                
+                checkboxInput("boolvar2", "Realized Volatility", value = FALSE, width = NULL),
+                checkboxInput("booldiff2", "Differences", value = FALSE, width = NULL),
+                checkboxInput("boollogdiff2", "Log Returns", value = FALSE, width = NULL),
+                sliderInput("varwindow2","Volatility Window",min=10,max=360,value=10)
+              )
+            ),
+
+            box
+            (
+              solidHeader = TRUE,
+              collapsible = TRUE,
+              dateRangeInput("daterange2", "Date range:",
+                             start = '2012-11-13',
+                             end = Sys.Date()),
+              box(
+              checkboxInput("boolbis", "Trend Line", value = FALSE, width = NULL),
+              checkboxInput("bool2bis", "Smooth", value = FALSE, width = NULL)
+              ),
+              #checkboxInput("bool3bis", "Returns", value = FALSE, width = NULL)
+              box(
+              selectInput("graph_type", "Choose Graph type", c("Scatterplot", "Time Series", "Cross-Correlation"))
+              )
+            ),
+            fluidRow(box
+            (
+              plotOutput("distPlot2")
+          ))
+         ),
+         
+          # ATM Analysis ------------------------
+         
+         tabItem(
+           tabName = "ATMAnalysis",
+                box(
+                    uiOutput("bases6"),
+                    dateRangeInput("daterange6", "Date range:",
+                                  start = '2012-11-13',
+                                  end = Sys.Date()),
+                box(
+                    checkboxInput("bool5w", "1w", value = TRUE, width = NULL),
+                    checkboxInput("bool6w", "2m", value = FALSE, width = NULL),
+                    checkboxInput("bool7m", "1m", value = FALSE, width = NULL)
+                   )
+                  )
+              )
+          # ------------------------
+         
+                          )
+              )
+)
+
+# Define server logic required to draw a histogram
+server<-function(input, output) {
+  
+  drv <- dbDriver("MySQL")
+  user_<-"Claudio"
+  password_<-"12345678"
+  dbname_<-"databasefx"
+  host_<-"150.216.112.128"
+  
+  con<-dbConnect(drv, user=user_, password=password_, dbname=dbname_, host=host_)
+  
+  
+  output$summarytable<-renderTable({
+    
+    sql1<-paste("SELECT " ,"*", " FROM databasefx.",input$PAIR,";")
+    rs <- dbSendQuery(con, sql1)
+    res1<-fetch(rs, n=-1)
+    res<-res1[,names(res1)==txt()]
+    
+    
+    #Si necesita estandarizar los risk reversals
+    if(input$bool5){
+      tenor <- substring(unlist(strsplit(txt()," "))[1],10)
+      ATM<-paste(toupper(input$PAIR),"V",tenor,sep="")
+      Headers <- gsub("\\ Curncy PX_LAST","\\",colnames(res1))
+      tenor
+      pos<-which(Headers %in% ATM )
+      if (pos!=0){
+        res<-res/res1[,pos]
+      }
+    }
+    
+    
+    
+    x <- xts(res,order.by=as.Date(res1[,1]))
+    colnames(x)<-txt()
+    
+    subs<-na.omit(x[time(x)>=input$daterange[1] & time(x)<=input$daterange[2],])
+    
+    #colnames(mysummary)<-"Stats"
+    if(input$bool4)
+    {
+      subs<-diff(log(subs))
+      subs<-sqrt(runVar(subs,n=input$varwindow))*sqrt(252)*100
+    }
+    if(input$bool3)
+    {
+      subs<-diff(log(subs))
+    }
+    grafica <- switch(input$plt,
+                      times = TRUE,
+                      histogr = FALSE)
+    mysummary <-data.frame(strsplit(summary(coredata(subs)),":"))
+    colnames(mysummary)<-c("Min.","1st Qu.","Median","Mean","3rd Qu.","Max.")
+    mysummary[2,]
+    
+  })
+  
+  
+  output$bases <- renderUI({
+    
+    sql1<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    selectInput("PAIR", "FX Pair", res)
+  })
+  
+  output$bases5 <- renderUI({
+    
+    sql1<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    selectInput("PAIR5", "FX Pair", res)
+  })
+  
+  output$bases6 <- renderUI({
+    
+    sql1<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    selectInput("PAIR6", "FX Pair", res)
+  })
+  
+  output$bases7 <- renderUI({
+    
+    sql1<-paste("SELECT * FROM databasefx.broker_quotes;", sep="")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-colnames(res)[-(1:2)]
+    res<-res[-which(res=="Time")]
+    selectInput("Datos", "Select Data", res)
+  })
+  
+  output$bases2 <- renderUI({
+    
+    sql1<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    selectInput("PAIR2", "FX Pair1 (X)", res)
+  })
+  
+  output$bases3 <- renderUI({
+    
+    sql1<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    selectInput("PAIR3", "FX Pair2 (Y)", res)
+  })
+  
+  output$bases4 <- renderUI({
+    
+    sql1<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    selectInput("PAIR4", "FX Pair3", res)
+  })
+  
+  output$instrumentos_broker <- renderUI({
+    
+    sql1<-paste("SELECT FX FROM databasefx.broker_quotes;")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    selectInput("instrumentos_broker", "Choose Pair", unique(res)[,])
+  })
+  output$tenors <- renderUI({
+    
+    sql1<-paste("SELECT Tenor FROM databasefx.broker_quotes;")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    selectInput("tenors_broker", "Choose Tenor", unique(res)[,])
+  })
+  
+  
+  output$instrumentos <- renderUI({
+    
+    sql1<-paste("SELECT * FROM databasefx.",input$PAIR,";")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    selectInput("instruments", "Choose instrument", names(res[1,])[-1])
+  })
+  
+  txt <- reactive({ input$instruments})
+  
+  output$distPlot <- renderPlotly({
+    
+    sql1<-paste("SELECT " ,"*", " FROM databasefx.",input$PAIR,";")
+    rs <- dbSendQuery(con, sql1)
+    res1<-fetch(rs, n=-1)
+    res<-res1[,names(res1)==txt()]
+    
+    
+    #Si necesita estandarizar los risk reversals
+    if(input$bool5){
+      tenor <- substring(unlist(strsplit(txt()," "))[1],10)
+      ATM<-paste(toupper(input$PAIR),"V",tenor,sep="")
+      Headers <- gsub("\\ Curncy PX_LAST","\\",colnames(res1))
+      tenor
+      pos<-which(Headers %in% ATM )
+      if (pos!=0){
+        res<-res/res1[,pos]
+      }
+    }
+  
+    x <- xts(res,order.by=as.Date(res1[,1]))
+    colnames(x)<-txt()
+    
+    subs<-na.omit(x[time(x)>=input$daterange[1] & time(x)<=input$daterange[2],])
+                 
+    if(input$bool4)
+    {
+      subs<-diff(log(subs))
+      subs<-sqrt(runVar(subs,n=input$varwindow))*sqrt(252)*100
+    }
+    if(input$bool3)
+    {
+      subs<-diff(log(subs))
+    }
+    grafica <- switch(input$plt,
+                      times = TRUE,
+                      histogr = FALSE)
+
+    if(grafica)
+    {
+      p<-ggplot(subs,aes(as.Date(time(subs)),coredata(subs),
+                         group=1,
+                         text = paste('Price:', coredata(subs),
+                                    '<br>Date: ', as.Date(time(subs))))
+                )
+      
+      p<-p+geom_line()
+      
+      if(input$bool)
+      {
+        p<-p+geom_smooth(method='lm')
+      }
+      if(input$bool2)
+      {
+        p<-p+geom_smooth(color='red')
+      }
+      
+      p<-p+labs(x = "",size=20)
+      p<-p+labs(y = "",size=10)
+      p<-p+ggtitle(colnames(x))
+      p<-p+theme(axis.text=element_text(size=8),
+                 axis.title=element_text(size=10,face="bold"))
+      
+    }else{
+      
+      p<-ggplot(subs,aes(coredata(subs),group=factor(year(time(subs))),fill=factor(year(time(subs)))))
+      p<-p+geom_histogram()+theme_bw()
+      
+      p<-p+geom_vline(aes(xintercept=mean(subs)),
+                      color="blue", linetype="dashed", size=1)
+      p<-p+geom_vline(aes(xintercept=mean(subs)+sd(subs)),
+                      color="red", linetype="dashed", size=1)
+      p<-p+geom_vline(aes(xintercept=median(subs)),
+                      color="green", linetype="dashed", size=1)
+      p<-p+geom_vline(aes(xintercept=mean(subs)-sd(subs)),
+                      color="red", linetype="dashed", size=1)
+      
+      p<-p+geom_text(aes(mean(subs),Inf,label = paste("mean= ",round(mean(subs),3)), vjust = 1.5,hjust=1.2),angle=90)
+      p<-p+geom_text(aes(median(subs),Inf,label = paste("median= ",round(median(subs),3)), vjust = -1,hjust=1.2),angle=90)
+      p<-p+geom_text(aes(mean(subs)-sd(subs),Inf,label = paste("mean-sd= ",round(mean(subs),3)), vjust = -1,hjust=1.2),angle=90)
+      p<-p+geom_text(aes(mean(subs)+sd(subs),Inf,label = paste("mean+sd= ",round(mean(subs),3)), vjust = 1.5,hjust=1.2),angle=90)
+      
+    }
+    
+    p<-p+theme(legend.position =  "bottom",legend.title = element_blank())
+    
+
+    ggplotly(p
+             ,tooltip = c("text")
+             ) %>% config(displayModeBar = F) 
+
+  
+    
+  })
+  
+  output$instrumentos2 <- renderUI({
+    
+    sql1<-paste("SELECT * FROM databasefx.",input$PAIR2,";")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    selectInput("instruments2", "Choose instrument", names(res[1,])[-1])
+  })
+  output$instrumentos3 <- renderUI({
+    
+    sql1<-paste("SELECT * FROM databasefx.",input$PAIR3,";")
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    selectInput("instruments3", "Choose instrument", names(res[1,])[-1])
+  })
+  
+  txt2 <- reactive({ input$instruments2})
+  txt3 <- reactive({ input$instruments3})
+  
+  
+  output$Broker_data_plot<-renderPlot({
+    
+    sql1<-paste("Select * from databasefx.broker_quotes WHERE FX='",
+                input$instrumentos_broker,"' AND Tenor='",input$tenors_broker,"'",sep="")
+    
+    rs <- dbSendQuery(con, sql1)
+    res<-fetch(rs, n=-1)
+    res<-res[,c(dim(res)[2],which(colnames(res)==input$Datos))]
+    
+    x <- xts(as.double(res[,2]),order.by=strptime(res[,1], "%Y-%m-%d %H:%M:%S"))
+    
+    p<-ggplot(x,aes(time(x),coredata(x)))
+    #plot(as.double(coredata(x)))
+    
+    p+geom_line()
+
+  })
+  
+  output$distPlotrealvol<-renderPlot({
+    
+    vol_type <- switch(input$voltype,
+                       c2c = 1,
+                       gk = 2,
+                       park=3,
+                       nomames=4)
+    sql2<-paste("SELECT " ,"*", " FROM databasefx.",input$PAIR5,";")
+    rs2 <- dbSendQuery(con, sql2)
+    res12<-fetch(rs2, n=-1)
+    if(vol_type==1)
+    {
+      res2<-res12[,2]
+      x2 <- xts(res2,order.by=as.Date(res12[,1]))
+      x2<-diff(log(x2))
+      x<-xts(rep(0,length(res12[,1])),order.by=as.Date(res12[,1]))
+      colnames(x)<-0
+    }else{
+      res2<-res12[,2:5]
+      x2 <- xts(res2,order.by=as.Date(res12[,1]))
+    }
+    
+    if(input$bool1w)
+    {
+    if(vol_type==1){
+    m<-sqrt(runVar(x2,n=7))*sqrt(252)*100
+    }
+    colnames(m)<-"1w"
+    x<-merge(x,m)
+    
+    
+    }
+    if(input$bool2w)
+    {
+      if(vol_type==1){
+      m<-sqrt(runVar(x2,n=14))*sqrt(252)*100
+      }
+      colnames(m)<-"2w"
+      x<-merge(x,m)
+      
+    }
+    if(input$bool1m)
+    {
+      if(vol_type==1){
+      m<-sqrt(runVar(x2,n=30))*sqrt(252)*100
+      }
+      colnames(m)<-"1m"
+      x<-merge(x,m)
+      
+    }
+    if(input$bool2m)
+    {
+      if(vol_type==1){
+      m<-sqrt(runVar(x2,n=60))*sqrt(252)*100
+      }
+      colnames(m)<-"2m"
+      x<-merge(x,m)
+      
+    }
+    if(input$bool3m)
+    {
+      if(vol_type==1){
+      m<-sqrt(runVar(x2,n=90))*sqrt(252)*100
+      }
+      colnames(m)<-"3m"
+      x<-merge(x,m)
+      
+    }
+    if(input$bool6m)
+    {
+      if(vol_type==1){
+      m<-sqrt(runVar(x2,n=180))*sqrt(252)*100
+      }
+      colnames(m)<-"6m"
+      x<-merge(x,m)
+    }
+    x<-na.omit(x)
+    x<-x[,-1]
+    
+    x<-x[time(x)>=input$daterange5[1] & time(x)<=input$daterange5[2],]
+    
+    x<-data.frame(date=time(x),coredata(x))
+    
+    xx <- melt(x, id="date")
+    
+    p<-xx %>% ggplot(aes(x=date,y=value, color=variable)) + geom_line()
+    p<-p+theme_bw()+theme(legend.position =  "bottom",legend.title = element_blank())
+    p
+  })
+  
+  output$distPlot2 <- renderPlot({
+    
+    sql2<-paste("SELECT " ,"*", " FROM databasefx.",input$PAIR2,";")
+    rs2 <- dbSendQuery(con, sql2)
+    res12<-fetch(rs2, n=-1)
+    res2<-res12[,names(res12)==txt2()]
+    x2 <- xts(res2,order.by=as.Date(res12[,1]))
+    colnames(x2)<-txt2()
+    
+    if(input$boolvar1)
+    {
+      x2<-diff(log(x2))
+      x2<-sqrt(runVar(x2,n=input$varwindow1))*sqrt(252)*100
+      colnames(x2)<-"Realized Vol"
+      
+    }
+    if(input$booldiff1)
+    {
+      x2<-diff(x2)
+      colnames(x2)<-"Adjacent differences"
+      
+    }
+    if(input$boollogdiff1)
+    {
+      x2<-diff(log(x2))
+      colnames(x2)<-"Log Returns"
+      
+    }
+    
+    
+    x2<-lag.xts(x2,k=input$lagg)
+    
+    sql3<-paste("SELECT " ,"*", " FROM databasefx.",input$PAIR3,";")
+    rs3 <- dbSendQuery(con, sql3)
+    res13<-fetch(rs3, n=-1)
+    res3<-res13[,names(res13)==txt3()]
+    x3 <- xts(res3,order.by=as.Date(res13[,1]))
+    colnames(x3)<-txt3()
+    
+    if(input$boolvar2)
+    {
+      x3<-diff(log(x3))
+      x3<-sqrt(runVar(x3,n=input$varwindow2))*sqrt(252)*100
+      colnames(x3)<-"Realized Vol"
+    }
+    if(input$booldiff2)
+    {
+      x3<-diff(x3)
+      colnames(x3)<-"Adjacent Differences"
+    }
+    if(input$boollogdiff2)
+    {
+      x3<-diff(log(x3))
+      colnames(x3)<-"Log Returns"
+    }
+    
+    x3<-lag.xts(x3,k=input$lagg2)
+    
+    xx<-na.omit(merge(x2,x3))
+    
+    subs<-xx[time(xx)>=input$daterange2[1] & time(xx)<=input$daterange2[2],]
+    
+    if(input$graph_type!="Cross-Correlation")
+    {
+      if(input$graph_type=="Scatterplot")
+      {
+        p<-ggplot(subs,aes(subs[,1],subs[,2]))  
+        #p<-ggplot(subs,aes(diff(log(subs[,1])),diff(log(subs[,2]))))
+        p<-p+geom_point()
+        
+        p<-p+labs(x = colnames(xx)[1],size=30)+labs(y = colnames(xx)[2],size=30)
+        p<-p+theme(axis.text=element_text(size=12),
+                   axis.title=element_text(size=14,face="bold"))
+      }else if(input$graph_type=="Time Series")
+      {
+        df<-data.frame(date=time(subs),v1=coredata(subs[,1]),v2=coredata(subs[,2]))
+        newdf<-melt(df,'date')
+        p<-ggplot(newdf,aes(x=date,y=value,color=variable) ) + geom_line() 
+        
+        p
+        
+        #p<-ggplot(subs,aes(time(subs),coredata(subs[,1])))
+        
+        #p<-ggplot(diff(log(subs[,1])),aes(x,y))+geom_line(aes(color=colnames(xx)[1]))
+        
+        #p<-p+geom_line(data=diff(log(subs[,2])),aes(color=colnames(xx)[2]))
+      
+        
+        }
+      
+      if(input$boolbis)
+      {
+        p<-p+geom_smooth(method='lm')
+        df<-data.frame(v1=coredata(subs[,1]),v2=coredata(subs[,2]))
+        p<-p+ geom_text(x = min(coredata(subs[,1])), y = max(coredata(subs[,2])),
+                        label = lm_eqn(df), parse = TRUE,
+                        hjust=0,vjust=1)
+      }
+      if(input$bool2bis)
+      {
+        p<-p+geom_smooth(color='red')
+      }
+      
+      p+theme_bw()+theme(legend.position =  "bottom",legend.title = element_blank())
+    }else
+    {
+      ts1<-as.vector(diff(log(ts(coredata(subs[,1])))))
+      ts2<-as.vector(diff(log(ts(coredata(subs[,2])))))
+      ccf(ts1,ts2,main="Cross - Correlation Function",lag=100)
+    }
+  })
+  
+  observeEvent(input$button_update, {
+    blpConnect()
+    drv <- dbDriver("MySQL")
+    user_<-"Claudio"
+    password_<-"12345678"
+    dbname_<-"databasefx"
+    host_<-"150.216.112.128"
+    
+    con<-dbConnect(drv, user=user_, password=password_, dbname=dbname_, host=host_)
+    sql<-paste("SELECT " ,"*", " FROM databasefx.",input$PAIR4,";",sep="")
+    rs <- dbSendQuery(con, sql)
+    res1<-as.vector(fetch(rs, n=-1))
+    res<-res1[,1]
+    requested<-bdh(input$string_ticker, 
+                   "PX_LAST", 
+                   start.date=as.Date(res[1]),
+                   include.non.trading.days = TRUE)
+    
+    if(dim(requested)[1]!=0)
+    {
+      requested<-requested[requested[,1] %in% as.Date(res),]
+      sql<-paste("ALTER TABLE `databasefx`.`",input$PAIR4,"` ADD COLUMN `",input$string_ticker," PX_LAST`",
+                 " DOUBLE NULL DEFAULT NULL AFTER `EURBRL12M Curncy PX_LAST`;",sep="")
+      rs <- dbSendQuery(con, sql)
+      
+      for(i in 1:length(res))
+      {
+        if(is.na(requested[i]))
+        {
+          sql<-paste("insert into databasefx.",input$PAIR4," (",
+                     input$string_ticker,"PX_LAST) Values (",
+                     "NULL",")",sep="")
+        }else{
+          
+          
+          sql<-paste("insert into databasefx.",input$PAIR4," (",
+                     input$string_ticker,"PX_LAST) Values (",
+                     requested[i,2],")",sep="")
+        }
+        rs <- dbSendQuery(con, sql)
+      }
+      
+      showNotification("The database has been updated",type="message")
+    }else{
+      showNotification("Name not found",type="error")
+    }
+    
+  })
+  
+  observeEvent(input$button, {
+    blpConnect()
+    drv <- dbDriver("MySQL")
+    user_<-"Claudio"
+    password_<-"12345678"
+    dbname_<-"databasefx"
+    host_<-"150.216.112.128"
+    
+    con<-dbConnect(drv, user=user_, password=password_, dbname=dbname_, host=host_)
+    
+    sql<-paste("SELECT table_name FROM information_schema.tables where table_schema='databasefx';")
+    rs <- dbSendQuery(con, sql)
+    res<-fetch(rs, n=-1)
+    res<-res[-which(res=="broker_quotes"),]
+    withProgress(message = 'Download Progress', value = 0, {
+    for(i in res)
+    {
+      incProgress(1/length(res), detail = i)
+      sql<-paste("SELECT " ,"*", " FROM databasefx.",i,";",sep="")
+      rs <- dbSendQuery(con, sql)
+      res<-fetch(rs, n=-1)
+      fields_raw<-colnames(res)[2:(length(colnames(res)))]
+      last_date<-as.Date(last(res[,1]))
+      if(Sys.Date()-1>last_date)
+      {
+        resultado<-0
+        withProgress(message = 'Download Progress', value = 0, {
+        for(j in fields_raw)
+        {
+          incProgress(1/length(fields_raw), detail = j)
+          request<-unlist(strsplit(j," "))
+          ticker<-paste(request[1]," ",request[2],sep="")
+          requested<-bdh(ticker, 
+                         request[3], 
+                         start.date=last_date+1,
+                         end.date = today()-1,
+                         include.non.trading.days = TRUE)
+          resultado<-cbind(resultado,requested[,2])
+        }
+        })
+        resultado<-resultado[,-1]
+        #indexes<-which(is.na(resultado[,1]))
+        #resultado<-resultado[-indexes,]
+        final<-data.frame(requested[,1],resultado)
+        final<-final[!is.na(final[,2]),]
+        colnames(final)<-c("Fecha",fields_raw)
+        #final<-final[-dim(final)[1],]
+        if(dim(final)[1]>0){
+        for(k in 1:length(final[,1]))
+        {
+          
+          sql1<-paste("insert into databasefx.",i," (",colnames(final)[1],sep="")
+          sql2<-paste("VALUES ('",final[k,1],"'",sep="")
+          for(l in 2:length(colnames(final)) )
+          {
+            
+            sql1<-paste(sql1,", `",colnames(final)[l],"`",sep="")
+            if(!is.na(final[k,l])){
+              sql2<-paste(sql2,",",final[k,l],sep="")
+            }else{
+              sql2<-paste(sql2,",NULL",sep="")
+            }
+          }
+          sql1<-paste(sql1,")",sep="")
+          sql2<-paste(sql2,");",sep="")
+          sql<-paste(sql1,sql2)
+          dbSendQuery(con, sql)
+        }
+        }
+        
+      }
+      
+    }
+    })
+    showNotification("The database has been updated",type="message")
+  })
+  
+  lm_eqn <- function(df){
+    m <- lm(df[,2] ~ df[,1]);
+    eq <- substitute(italic(y) == a + b * italic(x)*","~~italic(r)^2~"="~r2, 
+                     list(a = format(coef(m)[1], digits = 2), 
+                          b = format(coef(m)[2], digits = 2), 
+                          r2 = format(summary(m)$r.squared, digits = 3)))
+    as.character(as.expression(eq));                 
+  }
+  
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)

@@ -8,9 +8,10 @@ server<-function(input, output) {
   user_<-"Claudio"
   password_<-"12345678"
   dbname_<-"databasefx"
+  #host_<-"localhost"
   host_<-"150.216.112.128"
   
-  con<-dbConnect(drv, user=user_, password=password_, dbname=dbname_, host=host_)
+  con<-dbConnect(drv, user=user_, password=password_, dbname=dbname_, host=host_,port=3307)
   
   output$summarytable<-renderTable({
     

@@ -1,5 +1,5 @@
-library(shiny)
-library(shinydashboard)
+#library(shiny)
+#library(shinydashboard)
 
 ipak <- function(pkg){
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
@@ -11,7 +11,7 @@ ipak <- function(pkg){
 
 packages<-c("quantmod","dplyr","Rblpapi","RMySQL","shiny","foreign","ggplot2","forecast",
             "shinyjs","shinydashboard","ggExtra","gridExtra","tidyverse","lubridate",
-            "reshape2","broom","magrittr","TTR","Hmisc","plotly","rhandsontable","dygraphs")
+            "reshape2","broom","magrittr","TTR","Hmisc","plotly","rhandsontable","dygraphs","shinydashboard")
 
 ipak(packages)
 

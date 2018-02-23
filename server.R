@@ -8,6 +8,7 @@ server<-function(input, output) {
   user_<-"Claudio"
   password_<-"12345678"
   dbname_<-"databasefx"
+  
   #host_<-"localhost"
   host_<-"150.216.112.128"
   
